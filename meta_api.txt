@@ -1,0 +1,63 @@
+"Any":
+	- Special Category (not a Meta value)
+	- Roles of the "Any" category will be allowed to spawn regardless of a user's category specification.
+	- Won't ignore subcategory specification or most other Meta fields
+	- "Any" roles will be excluded from spawning 90% of the time to avoid overshadowing roles of smaller categories.
+	- A user-specified category must still exist, or else "Any" roles won't spawn and an error message will be provided instead.
+
+adminOnly: Boolean
+	- If true, the command can only be accessed by someone with administrative level permissions.
+	- This has a special behavior in Command Lists; Admin-only commands are shown in red, instead of the usual white.
+
+anyExCat: [Array<String>]
+	- Applied roles will not be able to roll in any listed category.
+	- Only for commands of the "Any" category.
+	- This will not affect commands of other categories.
+
+cannotRoll: Boolean
+	- Any role marked with this will be completely excluded from role rolling.
+	- Other modifiers, such as to spawn rate, will be completely ignored.
+
+censor: "String" | [Array<String>]
+	- Used in 1508: Guess The Role to censor specific phrases that might otherwise give the role's name away.
+	- 1508's automatic censor can only detect exact matches to the role's title.
+	- This might be needed if a role mentions a small part of a role's name, for example.
+
+eventData: "[d|n]<Number>[+|-]..."
+	- Used to determine when an event is allowed to spawn, based on the Random Event command.
+	- The basis should be a whole number within a string.
+	- You may prefix the number with d or n to specify that it should be limited to either the Day or Night.
+	- You may suffix the number with + or - to mark that all phases after or before it should be included too.
+	- You may have multiple specifiers within the same string, separated by spaces.
+
+minArgs: Number
+	- Specifies the minimum number of required parameters for a command.
+	- If someone attempts to use the command with fewer than the required number of arguments, an error message will be provided.
+	- The error message is auto-generated based on the name of the command typed, and the command's "param" field.
+
+spawnCat: "String" | [Array<String>]
+	- If this is specified, the role will spawn within the provided Category/ies, rather than its actual category.
+	- This will override the special behavior attributed to the "Any" category.
+	- If "Any" is within the spawnCat list, it will have its special behavior applied to it.
+	- Has no effect on the listing or displaying of a command's category.
+
+spawnRate: Number
+	- A multiplier that determines how often, relative to other roles, that this role will be chosen.
+	- Decimal values are acceptable, but will be rounded to the nearest 0.001 if necessary.
+	- A value of 0 or below will prevent the role from spawning.
+
+spawnSubCat: "String" | [Array<String>]
+	- If this is specified, the role will spawn within the provided subcategory/ies, rather than its subCat.
+	- If both this and subCat are Arrays, absolutely any cat+subcat combination will be acceptable for specifying what can be rolled.
+	- Has no effect on the listing or displaying of a command's subCat.
+
+subCat: "String"
+	- Allows for further division and specification of a command's category.
+	- Applies to rolling, listing, and various other areas where information about a command may be displayed.
+	- Determines default color and icon of the command's embed.
+
+syncCats: Boolean
+	- Only has an effect on roles that have both spawnCat and spawnSubCat as Arrays.
+	- As long as this is active, the position of listed categories and subcategories will be checked when rolling for commands.
+	- Category 1 and subCat 1 must match, or Category 2 and subCat 2 must match, etc.
+	- Any match where the number is different, such as Category 1 and subCat 2, will be ignored.

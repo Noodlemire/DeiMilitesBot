@@ -25,11 +25,11 @@ module.exports = (g) =>
 		i = i + 1;
 	}
 
-	register_cmd(["random", "r"], "<number> | <min> <max>", "Random", "Generate a random number between [1, <number] or between [<min>, <max>].", {minArgs: 1}, (chn, message, e, args) =>
+	register_cmd(["random", "r"], "<number> | <min> <max>", "Random", "Generate a random number between [1, <number] or between [<min>, <max>].", {minArgs: 1}, (chn, source, e, args) =>
 	{
 		if(!UTILS.isInt(args[0]) || (args[1] && !UTILS.isInt(args[1])))
 		{
-			UTILS.msg(chn, "-ERROR: This function cannot accept non-integer values.");
+			UTILS.msg(source, "-ERROR: This function cannot accept non-integer values.");
 			return;
 		}
 
@@ -42,14 +42,14 @@ module.exports = (g) =>
 			min = 1;
 		}
 
-		UTILS.msg(chn, "Rolled: " + UTILS.randInt(min, max));
+		UTILS.msg(source, "Rolled: " + UTILS.randInt(min, max));
 	});
 
-	register_cmd(["random_list", "randomlist", "rlist"], "<number>", "Random List", "Generate a randomly ordered list of numbers between 1 and <number>.", {minArgs: 1}, (chn, message, e, args) =>
+	register_cmd(["random_list", "randomlist", "rlist"], "<number>", "Random List", "Generate a randomly ordered list of numbers between 1 and <number>.", {minArgs: 1}, (chn, source, e, args) =>
 	{
 		if(!UTILS.isInt(args[0]))
 		{
-			UTILS.msg(chn, "-ERROR: This function cannot accept non-integer values.");
+			UTILS.msg(source, "-ERROR: This function cannot accept non-integer values.");
 			return;
 		}
 
@@ -57,13 +57,13 @@ module.exports = (g) =>
 
 		if(n <= 0)
 		{
-			UTILS.msg(chn, "-ERROR: '<number>' in '" + PRE + "rlist' must be greater than 0");
+			UTILS.msg(source, "-ERROR: '<number>' in '" + PRE + "rlist' must be greater than 0");
 			return;
 		}
 
 		if(n > 100)
 		{
-			UTILS.msg(chn, "-ERROR: '<number>' in '" + PRE + "rlist' cannot exceed 100");
+			UTILS.msg(source, "-ERROR: '<number>' in '" + PRE + "rlist' cannot exceed 100");
 			return;
 		}
 
@@ -81,22 +81,22 @@ module.exports = (g) =>
 			out += list[i] + "\n";
 
 		if(out === "")
-			UTILS.msg(chn, "-ERROR: '<number>' in '" + PRE + "rlist' must be a number.");
+			UTILS.msg(source, "-ERROR: '<number>' in '" + PRE + "rlist' must be a number.");
 		else
-			UTILS.msg(chn, out);
+			UTILS.msg(source, out);
 	});
 	
-	register_cmd(["random_choice", "randomchoice", "rchoice", "choice"], "<option 1> <option 2> [options]...", "Random Choice", "Choose 1 option out of the provided list at random.", {minArgs: 2}, (chn, message, e, args) =>
+	register_cmd(["random_choice", "randomchoice", "rchoice", "choice"], "<option 1> <option 2> [options]...", "Random Choice", "Choose 1 option out of the provided list at random.", {minArgs: 2}, (chn, source, e, args) =>
 	{
-		UTILS.msg(chn, args[UTILS.randInt(args.length)]);
+		UTILS.msg(source, args[UTILS.randInt(args.length)]);
 	});
 	
-	register_cmd(["random_hex", "randomhex", "rhex", "hex"], "", "Random Hex", "Generate and view a random color made of 6 hexadecimal characters.", (chn, message, e, args) =>
+	register_cmd(["random_hex", "randomhex", "rhex", "hex"], "", "Random Hex", "Generate and view a random color made of 6 hexadecimal characters.", (chn, source, e, args) =>
 	{
 		let color = UTILS.rHex(6);
 		e.setAuthor({name: "#" + color});
 		e.setColor(color);
 
-		UTILS.embed(chn, e);
+		UTILS.embed(source, e);
 	});
 };

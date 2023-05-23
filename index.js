@@ -1,17 +1,22 @@
-const {Client, Intents, MessageEmbed, MessageActionRow} = require('discord.js');
+const {Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle} = require("discord.js");
+const {REST} = require("@discordjs/rest");
+const {Routes} = require("discord-api-types/v9");
 const {readFile, writeFile, open} = require("fs");
 
-const OWNER = "298205270201597955";
 const PRE = "^";
+const ELEVATED = "ADMINISTRATOR";
 
-const bot = new Client({intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MEMBERS]});
+const bot = new Client({intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers, GatewayIntentBits.MessageContent]});
 
 const interactions = {};
 const commands = {};
+const scdata = [];
 const conflicts = {};
 const menus = {};
 
-const UTILS = require("./utils.js")({MessageActionRow, MessageEmbed, menus, interactions});
+const UTILS = require("./utils.js")({ActionRowBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, menus, interactions});
+
+const Player = require("./player.js")({UTILS});
 
 const SERVER_DATA = {};
 const LOCAL_DATA = {};
@@ -31,24 +36,37 @@ readFile(FNAME, (err, data) =>
 	if(!LOCAL_DATA.TOKEN)
 		throw "Error: No TOKEN provided.";
 
+	if(!LOCAL_DATA.appID)
+		throw "Error: No Application ID (appID) provided.";
+
 	if(store.SERVER_DATA)
+	{
 		for(let id in store.SERVER_DATA)
+		{
 			SERVER_DATA[id] = store.SERVER_DATA[id];
+
+			if(SERVER_DATA[id].players)
+				for(let p = 0; p < SERVER_DATA[id].players.length; p++)
+					SERVER_DATA[id].players[p] = new Player(SERVER_DATA[id].players[p]);
+		}
+	}
 
 	writeFile(FNAME2, data, (err) =>
 	{
 		if(err) throw err;
 	});
 
+	rest = new REST({version: "10"}).setToken(LOCAL_DATA.TOKEN);
+
 	login();
 })
 
 var overwrites = 0;
-function overwrite(chn, cb)
+function overwrite(src, cb)
 {
 	if(overwrites > 1)
 	{
-		if(chn) UTILS.msg(chn, "-WARNING: " + overwrites + " simultaneous overwrites!");
+		if(src) UTILS.msg(src, "-WARNING: " + overwrites + " simultaneous overwrites!");
 		console.log("WARNING: " + overwrites + " simultaneous overwrites!");
 	}
 
@@ -58,7 +76,7 @@ function overwrite(chn, cb)
 	writeFile(FNAME, json, (err) =>
 	{
 		if(err) throw err;
-		if(chn) UTILS.msg(chn, "+Data saved successfully.").then(() => {if(cb) return cb();});
+		if(src) UTILS.msg(src, "+Data saved successfully.").then(() => {if(cb) return cb();});
 
 		overwrites--;
 	});
@@ -139,7 +157,7 @@ function add_cmd(name, cmd)
 				title: PRE + name + " Conflict",
 				desc: "This command exists because of a conflict between two command names. Use it to learn how to specify which individual command you want to see.",
 
-				func: (chn) =>
+				func: (chn, src) =>
 				{
 					let txt = "Command '" + PRE + name + "' refers to multiple commands. Did you mean:\n";
 
@@ -149,7 +167,7 @@ function add_cmd(name, cmd)
 						txt = txt + "\n" + PRE + con.com + " - " + con.title + " (" + con.cat + (con.subCat && (" " + con.subCat) || "") + ")";
 					}
 
-					UTILS.msg(chn, txt);
+					UTILS.msg(src, txt);
 				}
 			});
 
@@ -158,6 +176,34 @@ function add_cmd(name, cmd)
 	}
 	else
 		commands[name] = cmd
+}
+
+function add_scmd(name, cmd)
+{
+	let m = cmd.meta || {};
+	let scmd = new SlashCommandBuilder()
+		.setName(typeof name === "string" ? name : name[0])
+		.setDescription(m.shortDesc || cmd.desc);
+
+	if(m.adminOnly)
+		scmd.setDefaultMemberPermissions(8);
+
+	if(m.slashOpts)
+	{
+		let min = m.minArgs || 0;
+
+		for(let i = 0; i < m.slashOpts.length; i++)
+		{
+			let dt = m.slashOpts[i].datatype;
+			if(dt === "Member") dt = "User"; //Why, discord.js?
+
+			scmd["add" + dt + "Option"]((o) => m.slashOpts[i].func(o.setName(m.slashOpts[i].oname).setRequired(i < min)));
+		}
+	}
+
+	scdata[scdata.length] = scmd.toJSON();
+
+	add_cmd(name, cmd);
 }
 
 function add_action(data, def)
@@ -218,13 +264,18 @@ const GLOBAL = {
 	bot,
 	commands,
 	add_cmd,
+	add_scmd,
 	add_action,
 	overwrite,
+	menus,
 
 	SERVER_DATA,
 
-	MessageEmbed,
-	MessageActionRow
+	EmbedBuilder,
+	ActionRowBuilder,
+	SlashCommandBuilder,
+
+	Player
 };
 
 require("./cmd_basics.js")(GLOBAL);
@@ -237,51 +288,33 @@ bot.on("ready", () =>
 {
 	console.log("Logged in as " + bot.user.tag + "!");
 
-	console.log("Guilds:");
-	bot.guilds.cache.forEach(g =>
+	(async () =>
 	{
-		g.members.fetch(bot.user.id).then(b =>
+		try
 		{
-			g.members.fetch(g.ownerId).then(o =>
+			console.log("Registering Slash Commands");
+
+			if(LOCAL_DATA.DEVMODE)
 			{
-				console.log(g.id + " - " + g.name + " - " + g.memberCount + " - " + o.user.tag + " - " + b.permissions.has("CREATE_INSTANT_INVITE") + " - " + b.permissions.has("ADMINISTRATOR"));
-			});
-		});
-	});
-
-	if(LOCAL_DATA.guild && LOCAL_DATA.channel)
-	{
-		let guild = bot.guilds.cache.get(LOCAL_DATA.guild);
-
-		if(guild)
-		{
-			let channel = guild.channels.cache.get(LOCAL_DATA.channel);
-
-			if(channel)
-				UTILS.msg(channel, "+Restart complete!");
+				await rest.put(Routes.applicationGuildCommands(LOCAL_DATA.appID, LOCAL_DATA.DEVMODE), {body: scdata});
+				await rest.put(Routes.applicationCommands(LOCAL_DATA.appID), {body: []});
+			}
 			else
-				console.log("WARNING: Unable to find Channel: " + String(LOCAL_DATA.channel));
+				await rest.put(Routes.applicationCommands(LOCAL_DATA.appID), {body: scdata});
 		}
-		else
-			console.log("WARNING: Unable to find Guild: " + String(LOCAL_DATA.guild));
-
-		delete LOCAL_DATA.guild;
-		delete LOCAL_DATA.channel;
-		overwrite();
-	}
-	else if(LOCAL_DATA.guild || LOCAL_DATA.channel)
-		console.log("WARNING: Attempted reset, but only Ruild or Channel specified! (" + String(LOCAL_DATA.guild) + " / " + String(LOCAL_DATA.channel) + ")");
+		catch (err)
+		{
+			console.error(err);
+		}
+	})();
 });
 
-var restarting = false;
 bot.on("messageCreate", (message) =>
 {
-	if(restarting) return;
-
 	if(message.content.substring(0, PRE.length) === PRE)
 	{
 		let channel = message.channel;
-		let embed = new MessageEmbed();
+		let embed = new EmbedBuilder();
 		let args = UTILS.split(message.content.substring(PRE.length), " ");
 		let cmd = (args[0] || "").toLowerCase();
 		args = args.splice(1);
@@ -290,46 +323,77 @@ bot.on("messageCreate", (message) =>
 		{
 			let meta = commands[cmd].meta;
 
-			if(meta.adminOnly && !message.member.permissions.has("ADMINISTRATOR"))
-				UTILS.msg(channel, "-You do not have elevated permissions for this bot.");
+			if(meta.adminOnly && !message.member.permissions.has(ELEVATED))
+				UTILS.msg(message, "-You do not have elevated permissions for this bot.");
 			else if(meta.minArgs && args.length < meta.minArgs)
-				UTILS.msg(channel, "-USAGE: " + PRE + cmd + " " + commands[cmd].param);
+				UTILS.msg(message, "-USAGE: " + PRE + cmd + " " + commands[cmd].param);
 			else
-				commands[cmd].func(channel, message, embed, args);
+			{
+				try
+				{
+					commands[cmd].func(channel, message, embed, args);
+				}
+				catch(err)
+				{
+					console.log(err);
+					console.trace();
+					UTILS.msg(message, "-ERROR: " + err);
+				}
+			}
 		}
 		else
-			UTILS.msg(channel, "-ERROR: Unknown command: " + PRE + cmd);
-	}
-	else if(message.content === "-RESTART" && message.member.id === OWNER)
-	{
-		restarting = true;
-
-		UTILS.msg(message.channel, "Restarting...").then(() =>
-		{
-			 open('.reset.txt', 'w', (err, file) => {
-				if(err) throw err;
-
-				LOCAL_DATA.guild = message.guild.id;
-				LOCAL_DATA.channel = message.channel.id;
-
-				overwrite(message.channel, () => {throw "exit";});
-			});
-		});
-
-		return;
+			UTILS.msg(message, "-ERROR: Unknown command: " + PRE + cmd);
 	}
 });
 
-bot.on("interactionCreate", (i) =>
+bot.on("interactionCreate", async (i) =>
 {
-	if(i.customId && interactions[i.customId])
+	if(i.commandName)
+	{
+		let cmd = commands[i.commandName];
+
+		if(cmd)
+		{
+			let embed = new EmbedBuilder();
+			let meta = cmd.meta;
+			let args = [];
+
+			if(meta.slashOpts)
+			{
+				let min = meta.minArgs || 0;
+
+				for(let a = 0; a < meta.slashOpts.length; a++)
+				{
+					let dt = meta.slashOpts[a].datatype;
+					if(dt === "User") dt = "Member"; //Why, discord.js?
+
+					let arg = i.options["get" + dt](meta.slashOpts[a].oname, a < min);
+
+					if(arg !== null)
+						args[a] = arg;
+				}
+			}
+
+			try
+			{
+				cmd.func(i.channel, i, embed, args);
+			}
+			catch(err)
+			{
+				console.log(err);
+				console.trace();
+				UTILS.msg(i, "-ERROR: " + err, true);
+			}
+		}
+	}
+	else if(i.customId && interactions[i.customId])
 		if(!interactions[i.customId](i))
 			i.update({});
 });
 
 bot.on("debug", (e) => console.log(e));
-bot.on("error", (error) => console.log(error.message + "\n\n" + error.stack));
-bot.on("shardError", (error) => console.log(error.message + "\n\n" + error.stack));
+bot.on("error", (error) => console.log("ERROR: " + error.name + " - " + error.message + "\n\n" + error.trace));
+bot.on("shardError", (error) => console.log("SHARD ERROR: " + error.name + " - " + error.message + "\n\n" + error.trace));
 
 function login()
 {
@@ -343,6 +407,7 @@ setInterval(() =>
 	for(let mid in menus)
 	{
 		let menu = menus[mid];
+		menu.time = menu.time || new Date().getTime();
 
 		if(now - menu.time >= 3600000)
 		{

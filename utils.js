@@ -2,7 +2,7 @@ const CONTENT_LIMIT = 1950
 
 module.exports = (g) =>
 {
-	const {MessageActionRow, MessageEmbed, menus, interactions} = g;
+	const {ActionRowBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, menus, interactions} = g;
 	const UTILS = {};
 
 	UTILS.arrayToChecklist = (a) =>
@@ -27,6 +27,12 @@ module.exports = (g) =>
 			return def;
 	}
 
+	UTILS.cloneClass = (obj) =>
+	{
+		let cls = obj.constructor;
+		return new cls(JSON.parse(JSON.stringify(obj)));
+	}
+
 	//<table>, <string>
 	UTILS.containsString = (t, s) =>
 	{
@@ -42,7 +48,9 @@ module.exports = (g) =>
 
 	UTILS.display = (value, level) =>
 	{
-		level = level || 1;
+		level = level || 0;
+
+		if(level > 5) return "...";
 
 		switch(typeof value)
 		{
@@ -57,10 +65,10 @@ module.exports = (g) =>
 					if(value.length === 0)
 						return "[]";
 
-					let disp = "[" + UTILS.display(value[0]);
+					let disp = "[" + UTILS.display(value[0], level);
 
 					for(let i = 1; i < value.length; i++)
-						disp = disp + ", " + UTILS.display(value[i]);
+						disp = disp + ", " + UTILS.display(value[i], level);
 
 					return disp + "]";
 				}
@@ -84,7 +92,7 @@ module.exports = (g) =>
 		}
 	}
 
-	UTILS.embed = (c, e) =>
+	UTILS.embed = (s, e, eph) =>
 	{
 		let auth = (e.author ? e.author.name : "");
 		let sum = auth.length;
@@ -93,26 +101,26 @@ module.exports = (g) =>
 		let curPage = 0;
 		let sumPage = 0;
 
-		if(auth.length > 256) {UTILS.msg(c, "-ERROR: Embed Title \"" + auth + "\" is longer than 256 characters!"); return;}
+		if(auth.length > 256) {UTILS.msg(s, "-ERROR: Embed Title \"" + auth + "\" is longer than 256 characters!"); return;}
 
 		if(e.description)
 		{
-			if(e.description.length > 4096) {UTILS.msg(c, "-ERROR: Embed \"" + auth + "\"'s Description is longer than 4096 characters!"); return;}
+			if(e.description.length > 4096) {UTILS.msg(s, "-ERROR: Embed \"" + auth + "\"'s Description is longer than 4096 characters!"); return;}
 			sum += e.description.length;
 		}
 
 		if(e.footer)
 		{
-			if(e.footer.text.length > 2048) {UTILS.msg(c, "-ERROR: Embed \"" + auth + "\"'s Footer text is longer than 2048 characters!"); return;}
+			if(e.footer.text.length > 2048) {UTILS.msg(s, "-ERROR: Embed \"" + auth + "\"'s Footer text is longer than 2048 characters!"); return;}
 			sum += e.footer.text.length;
 		}
 
-		if(auth.length + (e.description ? e.description.length : 0) + (e.footer ? e.footer.text.length : 0) > 4700) {UTILS.msg(c, "-ERROR: Embed \"" + auth + "\"'s Title, Description, and/or Footer are too long! They must allow for at least one full Field (Sum <= 4700)"); return;}
+		if(auth.length + (e.description ? e.description.length : 0) + (e.footer ? e.footer.text.length : 0) > 4700) {UTILS.msg(s, "-ERROR: Embed \"" + auth + "\"'s Title, Description, and/or Footer are too long! They must allow for at least one full Field (Sum <= 4700)"); return;}
 
 		for(let f in e.fields)
 		{
-			if(e.fields[f].name.length > 256) {UTILS.msg(c, "-ERROR: Embed \"" + auth + "\"'s Field " + f + " contains a Name which is longer than 256 characters!"); return;}
-			if(e.fields[f].value.length > 1024) {UTILS.msg(c, "-ERROR: Embed \"" + auth + "\"'s Field " + f + " contains a Value which is longer than 1024 characters!"); return;}
+			if(e.fields[f].name.length > 256) {UTILS.msg(s, "-ERROR: Embed \"" + auth + "\"'s Field " + f + " contains a Name which is longer than 256 characters!"); return;}
+			if(e.fields[f].value.length > 1024) {UTILS.msg(s, "-ERROR: Embed \"" + auth + "\"'s Field " + f + " contains a Value which is longer than 1024 characters!"); return;}
 
 			let page = pages[curPage];
 
@@ -137,26 +145,29 @@ module.exports = (g) =>
 			embeds[1].setDescription("Page 1 of " + pages.length);
 		}
 
-		c.send({embeds}).then((sent) =>
+		let buttons = null; 
+
+		if(pages.length > 1)
+		{
+			buttons = new ActionRowBuilder({components: [
+				new ButtonBuilder({customId: "__utils:frst", style: ButtonStyle.Primary, label: "First Page", emoji: "⏪", disabled: true}),
+				new ButtonBuilder({customId: "__utils:prev", style: ButtonStyle.Secondary, label: "Previous Page", emoji: "⬅️", disabled: true}),
+				new ButtonBuilder({customId: "__utils:next", style: ButtonStyle.Secondary, label: "Next Page", emoji: "➡️"}),
+				new ButtonBuilder({customId: "__utils:last", style: ButtonStyle.Primary, label: "Last Page", emoji: "⏩"}),
+			]});
+
+			if(line + t.length + CONTENT_LIMIT >= txt.length)
+				buttons.components[3].setDisabled(true);
+		}
+
+		s.reply({embeds, components: (buttons ? [buttons] : null), allowedMentions: {repliedUser: false}, ephemeral: eph, fetchReply: true}).then((sent) =>
 		{
 			if(pages.length > 1)
 			{
-				menus[sent.id] = {type: "embed", message: sent, page: 1, list: [pages[0].fields], time: new Date().getTime()};
+				menus[sent.id] = {type: "embed", message: sent, page: 1, buttons, list: [pages[0].fields], time: new Date().getTime()};
 
 				for(let i = 1; i < pages.length; i++)
 					menus[sent.id].list[i] = pages[i].fields;
-
-				menus[sent.id].buttons = new MessageActionRow({components: [
-					{type: "BUTTON", customId: "__utils:frst", style: "PRIMARY", label: "First Page", emoji: "⏪", disabled: true},
-					{type: "BUTTON", customId: "__utils:prev", style: "SECONDARY", label: "Previous Page", emoji: "⬅️", disabled: true},
-					{type: "BUTTON", customId: "__utils:next", style: "SECONDARY", label: "Next Page", emoji: "➡️"},
-					{type: "BUTTON", customId: "__utils:last", style: "PRIMARY", label: "Last Page", emoji: "⏩"},
-				]});
-
-				if(menus[sent.id].list.length <= 2)
-					menus[sent.id].buttons.components[3].disabled = true;
-
-				sent.edit({components: [menus[sent.id].buttons], embeds});
 			}
 		});
 	}
@@ -185,6 +196,23 @@ module.exports = (g) =>
 				return players[i]
 	}
 
+	UTILS.getPlayerByName = (players, name) =>
+	{
+		if(!name) return;
+
+		name = name.toLowerCase();
+
+		for(let a = 0; a < players.length; a++)
+		{
+			if(players[a].dispname && players[a].dispname.toLowerCase() === name)
+				return players[a];
+
+			for(let b = 0; b < players[a].nicknames.length; b++)
+				if(players[a].nicknames[b] === name)
+					return players[a];
+		}
+	}
+
 	UTILS.isInt = (v, trueIfNull) =>
 	{
 		if(!v && trueIfNull)
@@ -194,6 +222,21 @@ module.exports = (g) =>
 			v = String(v);
 
 		return parseInt(v, 10).toString() === v;
+	}
+
+	UTILS.isLong = (v, trueIfNull) =>
+	{
+		if(!v && trueIfNull)
+			return true;
+
+		if(typeof v !== "string")
+			v = String(v);
+
+		for(let i = 0; i < v.length; i++)
+			if(!UTILS.isInt(v[i]))
+				return false;
+
+		return true;
 	}
 
 	UTILS.isNeg = (arg) =>
@@ -206,6 +249,8 @@ module.exports = (g) =>
 
 	UTILS.libSplit = (s, d1, d2) =>
 	{
+		if(!s) return {};
+
 		let splits1 = s.split(d1);
 		let lib = {};
 
@@ -221,7 +266,7 @@ module.exports = (g) =>
 		return lib;
 	}
 
-	UTILS.msg = (chn, txt, nodiff, line, sent) =>
+	UTILS.msg = (src, txt, eph, nodiff, line, menu) =>
 	{
 		let size = CONTENT_LIMIT;
 		line = (line || 0);
@@ -229,7 +274,7 @@ module.exports = (g) =>
 
 		if(line + size < txt.length)
 			while(txt[line+size-1] && txt[line+size-1] != '\n')
-				size -= 1;
+				size--;
 
 		if(size <= 0)
 			size = CONTENT_LIMIT;
@@ -237,36 +282,39 @@ module.exports = (g) =>
 		let t = txt.substring(line, line + size);
 		let message = (nodiff && t || "```diff\n" + t + "```");
 
-		if(!sent)
+		if(!menu)
 		{
-			return chn.send(message).then((sent) =>
+			if(line + t.length < txt.length)
 			{
-				if(line + t.length < txt.length)
-				{
-					menus[sent.id] = {type: "text", message: sent, page: 1, list: [message], time: new Date().getTime()};
-					UTILS.msg(chn, txt, nodiff, line + size, sent);
-				}
-			});
+				let buttons = new ActionRowBuilder({components: [
+					new ButtonBuilder({customId: "__utils:frst", style: ButtonStyle.Primary, label: "First Page", emoji: "⏪", disabled: true}),
+					new ButtonBuilder({customId: "__utils:prev", style: ButtonStyle.Secondary, label: "Previous Page", emoji: "⬅️", disabled: true}),
+					new ButtonBuilder({customId: "__utils:next", style: ButtonStyle.Secondary, label: "Next Page", emoji: "➡️"}),
+					new ButtonBuilder({customId: "__utils:last", style: ButtonStyle.Primary, label: "Last Page", emoji: "⏩"}),
+				]});
+
+				if(line + t.length + CONTENT_LIMIT >= txt.length)
+					buttons.components[3].setDisabled(true);
+
+				menu = {type: "text", buttons, page: 1, list: [message], time: new Date().getTime()};
+				return UTILS.msg(src, txt, eph, nodiff, line + size, menu);
+			}
+			else
+				return src.reply({content: message, allowedMentions: {repliedUser: false}, ephemeral: eph, fetchReply: true});
 		}
 		else
 		{
-			menus[sent.id].list[menus[sent.id].list.length] = message;
+			menu.list[menu.list.length] = message;
 
 			if(line + t.length < txt.length)
-				UTILS.msg(chn, txt, nodiff, line + size, sent);
+				return UTILS.msg(src, txt, eph, nodiff, line + size, menu);
 			else
 			{
-				menus[sent.id].buttons = new MessageActionRow({components: [
-					{type: "BUTTON", customId: "__utils:frst", style: "PRIMARY", label: "First Page", emoji: "⏪", disabled: true},
-					{type: "BUTTON", customId: "__utils:prev", style: "SECONDARY", label: "Previous Page", emoji: "⬅️", disabled: true},
-					{type: "BUTTON", customId: "__utils:next", style: "SECONDARY", label: "Next Page", emoji: "➡️"},
-					{type: "BUTTON", customId: "__utils:last", style: "PRIMARY", label: "Last Page", emoji: "⏩"},
-				]});
-
-				if(menus[sent.id].list.length <= 2)
-					menus[sent.id].buttons.components[3].disabled = true;
-
-				sent.edit({components: [menus[sent.id].buttons], content: menus[sent.id].list[0] + "\nPage 1 of " + menus[sent.id].list.length});
+				return src.reply({content: menu.list[0] + "\nPage 1 of " + menu.list.length, components: [menu.buttons], allowedMentions: {repliedUser: false}, ephemeral: eph, fetchReply: true}).then((sent) =>
+				{
+					menu.message = sent;
+					menus[sent.id] = menu;
+				});
 			}
 		}
 	}
@@ -363,7 +411,7 @@ module.exports = (g) =>
 	{
 		let tabs = "";
 
-		for(let i = 0; i < level-1; i++)
+		for(let i = 0; i < level; i++)
 			tabs = tabs + '\t';
 
 		return tabs;
@@ -399,10 +447,10 @@ module.exports = (g) =>
 
 		menu.page = UTILS.gate(1, pageChange(menu), menu.list.length);
 
-		menu.buttons.components[0].disabled = (menu.page <= 2);
-		menu.buttons.components[1].disabled = (menu.page <= 1);
-		menu.buttons.components[2].disabled = (menu.page >= menu.list.length);
-		menu.buttons.components[3].disabled = (menu.page >= menu.list.length-1);
+		menu.buttons.components[0].setDisabled(menu.page <= 2);
+		menu.buttons.components[1].setDisabled(menu.page <= 1);
+		menu.buttons.components[2].setDisabled(menu.page >= menu.list.length);
+		menu.buttons.components[3].setDisabled(menu.page >= menu.list.length-1);
 
 		if(menu.type === "text")
 			interaction.update({components: [menu.buttons], content: menu.list[menu.page-1] + "\nPage " + menu.page + " of " + menu.list.length});

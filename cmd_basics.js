@@ -13,8 +13,7 @@ function help(commands, e, cmd, pre)
 		e.setAuthor({name: pre + cmd});
 		e.setColor("#0000FF");
 		e.setDescription(data.desc);
-		e.addField("Category", data.cat);
-		e.addField("Usage", pre + cmd + " " + data.param);
+		e.addFields([{name: "Category", value: data.cat}, {name: "Usage", value: pre + cmd + " " + data.param}]);
 
 		let alts = [];
 		for(let c in commands)
@@ -28,17 +27,17 @@ function help(commands, e, cmd, pre)
 			for(let i = 1; i < alts.length; i++)
 				forms = forms + "\n" + pre + alts[i];
 			
-			e.addField("Aliases", forms);
+			e.addFields([{name: "Aliases", value: forms}]);
 		}
 	}
 }
 
 module.exports = (g) =>
 {
-	const {PRE, UTILS, add_cmd, commands, aliases, overwrite} = g;
+	const {PRE, UTILS, add_cmd, add_scmd, commands, aliases, overwrite} = g;
 	let i = 0;
 	
-	function register_cmd(name, param, title, desc, meta, func)
+	function _cmd(cmd, name, param, title, desc, meta, func)
 	{
 		if(!func)
 		{
@@ -46,7 +45,7 @@ module.exports = (g) =>
 			meta = {};
 		}
 	
-		add_cmd(name, {
+		cmd(name, {
 			id: "b" + i,
 			cat: "Basic",
 			title,
@@ -59,7 +58,17 @@ module.exports = (g) =>
 		i = i + 1;
 	}
 
-	register_cmd("list", "[category[:subcategory]...]...", "List", "Create a list of all registered commands, organized by category, and when applicable, subcategory. Commands with alternate forms will have each form listed on the same line.\n\nYou may optionally provide category names as parameters. This will limit the created list to only commands from those categories.\n\nYou may also specify a subcategory for each category. This is done using the format of `category:subcategory`. The same category can have more than one listed subcategory, e.g. `category:apple:bannana:cyanide`\n\nPut a - or a ! before specified categories or subcategories to instead exclude them.\n\nSee =categories for a list of categories and subcategories.\n\nExact spelling will be required when specifying categories and subcategories, but they will not be case-sensitive.", (chn, message, e, args) =>
+	function register_cmd(name, param, title, desc, meta, func)
+	{
+		_cmd(add_cmd, name, param, title, desc, meta, func)
+	}
+
+	function register_scmd(name, param, title, desc, meta, func)
+	{
+		_cmd(add_scmd, name, param, title, desc, meta, func)
+	}
+
+	register_cmd("list", "[category[:subcategory]...]...", "List", "Create a list of all registered commands, organized by category, and when applicable, subcategory. Commands with alternate forms will have each form listed on the same line.\n\nYou may optionally provide category names as parameters. This will limit the created list to only commands from those categories.\n\nYou may also specify a subcategory for each category. This is done using the format of `category:subcategory`. The same category can have more than one listed subcategory, e.g. `category:apple:bannana:cyanide`\n\nPut a - or a ! before specified categories or subcategories to instead exclude them.\n\nSee =categories for a list of categories and subcategories.\n\nExact spelling will be required when specifying categories and subcategories, but they will not be case-sensitive.", (chn, source, e, args) =>
 	{
 		let list = "Command List:";
 		let ordered = {};
@@ -179,7 +188,7 @@ module.exports = (g) =>
 
 		if(!atLeastOne)
 		{
-			UTILS.msg(chn, "-No commands could be found under those specifications.");
+			UTILS.msg(source, "-No commands could be found under those specifications.");
 			return;
 		}
 
@@ -211,10 +220,10 @@ module.exports = (g) =>
 			}
 		}
 
-		UTILS.msg(chn, list);
+		UTILS.msg(source, list);
 	});
 
-	register_cmd(["categories", "cats"], "", "Categories", "Retrieve a list of all known categories that contain at least one command, as well as any subcategories within them. They can be used with " + PRE + "list [Category:Subcategory]", (chn) =>
+	register_cmd(["categories", "cats"], "", "Categories", "Retrieve a list of all known categories that contain at least one command, as well as any subcategories within them. They can be used with " + PRE + "list [Category:Subcategory]", (chn, source) =>
 	{
 		let output = "List of Categories:\n";
 		let cats = {}
@@ -247,27 +256,27 @@ module.exports = (g) =>
 			output = output + '\n' + cstr;
 		}
 
-		UTILS.msg(chn, output);
+		UTILS.msg(source, output);
 	});
 
-	register_cmd("help", "[command]", "Help", "Recieve extra info about the usage and purpose of a provided command. Use " + PRE + "list to see a list of all commands.", (chn, message, e, args) =>
+	register_scmd("help", "[command]", "Help", "Recieve extra info about the usage and purpose of a provided command.", {slashOpts: [{datatype: "String", oname: "command", func: (str) => str.setDescription("Name of the command you need info about.")}]}, (chn, source, e, args) =>
 	{
 		if(!args[0])
 			help(commands, e, "help", PRE);
 		else
 			help(commands, e, (args[0] || "").toLowerCase(), PRE);
 
-		UTILS.embed(chn, e);
+		UTILS.embed(source, e);
 	});
 
-	register_cmd("meta", "<command>", "Meta", "List a command's meta data. This is primarily used for roles with special spawning conditions.\n\nYou should not include any prefix when specifying the command's name, unless it happens to be separately part of the command's name.", (chn, message, e, args) =>
+	register_scmd("meta", "<command>", "Meta", "See a command's metadata, which affects how it can be used in terms of parameters, permissions, etc.\n\nYou should not include any prefix when specifying the command's name, unless it happens to be separately part of the command's name.", {minArgs: 1, slashOpts: [{datatype: "String", oname: "command", func: (str) => str.setDescription("Name of the command you need info about.")}], shortDesc: "See a command's metadata, which affects how it can be used in terms of parameters, permissions, etc."}, (chn, source, e, args) =>
 	{
-		let cname = args[0] || "";
+		let cname = args[0];
 		let cmd = commands[cname];
 
 		if(!cmd)
 		{
-			UTILS.msg(chn, "-ERROR: Command " + PRE + cname + " not found.");
+			UTILS.msg(source, "-ERROR: Command " + PRE + cname + " not found.");
 			return;
 		}
 
@@ -276,25 +285,25 @@ module.exports = (g) =>
 
 		if(keys.length === 0)
 		{
-			UTILS.msg(chn, "Command " + PRE + cname + " has no meta.");
+			UTILS.msg(source, "Command " + PRE + cname + " has no meta.");
 			return;
 		}
 
 		let output = "Meta for command " + PRE + cname + "\n{";
 
 		for(let i = 0; i < keys.length; i++)
-			output = output + "\n\t" + keys[i] + ": " + UTILS.display(meta[keys[i]]);
+			output = output + "\n\t" + keys[i] + ": " + UTILS.display(meta[keys[i]], 1);
 
-		UTILS.msg(chn, output + "\n}");
+		UTILS.msg(source, output + "\n}");
 	});
 
-	register_cmd("ping", "", "Ping", "Debug; Send a signal to the bot and recieve a response.", (chn) =>
+	register_scmd("ping", "", "Ping", "Debug; Send a signal to the bot and recieve a response.", (chn, source) =>
 	{
-		UTILS.msg(chn, "+Pong!");
+		UTILS.msg(source, "+Pong!");
 	});
 
-	register_cmd("overwrite", "", "Overwrite", "Manually write current data to internal storage.", {adminOnly: true}, (chn) =>
+	register_scmd("overwrite", "", "Overwrite", "Manually write current data to internal storage.", {adminOnly: true}, (chn, source) =>
 	{
-		overwrite(chn);
+		overwrite(source);
 	});
 };

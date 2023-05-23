@@ -18,6 +18,14 @@ function firstname(p)
 	return name.substring(0, 1).toUpperCase() + name.substring(1);
 }
 
+function category(source)
+{
+	if(source.channel.parent)
+		return source.channel.parent.id;
+	else
+		return "null";
+}
+
 module.exports = (g) =>
 {
 	const {PRE, UTILS, add_scmd, add_action, overwrite, menus, SERVER_DATA, Player} = g;
@@ -40,7 +48,7 @@ module.exports = (g) =>
 			meta,
 			func: (chn, source, e, args) =>
 			{
-				let id = source.channel.parent.id;
+				let id = category(source);
 
 				if(!SERVER_DATA[id])
 					SERVER_DATA[id] = {players: []};
@@ -131,8 +139,8 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		let pdata = SERVER_DATA[source.channel.parent.id].players;
-		let defaults = SERVER_DATA[source.channel.parent.id].defaults;
+		let pdata = SERVER_DATA[category(source)].players;
+		let defaults = SERVER_DATA[category(source)].defaults;
 
 		player(source, pdata, {tags: defaults || {}}, args, 0);
 	});
@@ -152,7 +160,7 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		let pdata = SERVER_DATA[source.channel.parent.id].players;
+		let pdata = SERVER_DATA[category(source)].players;
 		let original = UTILS.isInt(args[0])
 				? pdata[Number(args[0])-1]
 				: UTILS.getPlayerByName(pdata, args[0]);
@@ -168,7 +176,7 @@ module.exports = (g) =>
 
 	register_scmd(["del_player", "delplayer"], "<Player Name or Number or *>", "Delete Player", "Remove a player from the bot's local storage.", {adminOnly: true, minArgs: 1, slashOpts: [{datatype: "String", oname: "player", func: (str) => str.setDescription("Name or Number of a player, or `*` to delete all players.")}]}, (chn, source, e, args) =>
 	{
-		let pdata = SERVER_DATA[source.channel.parent.id].players;
+		let pdata = SERVER_DATA[category(source)].players;
 		let players = (args[0] === "*" ? Object.keys(pdata) : [args[0]]);
 		let output = "";
 
@@ -212,7 +220,7 @@ module.exports = (g) =>
 
 	register_scmd(["list_players", "listplayers", "players"], "", "List Players", "Display the current data of registered players, including tags if any exist.\n\n**Warning, this can reveal meta info if used in public channels.** But only if you're using the prefix command version. The slash command version sends a message which is visible only to the command user.", {adminOnly: true, shortDesc: "Display the current data of registered players, including tags if any exist."}, (chn, source, e, args) =>
 	{
-		let pdata = SERVER_DATA[source.channel.parent.id].players;
+		let pdata = SERVER_DATA[category(source)].players;
 		let fields = [];
 
 		if(pdata.length === 0)
@@ -221,7 +229,7 @@ module.exports = (g) =>
 			return;
 		}
 
-		e.setAuthor({name: "Player Data (" + source.guild.name + " <" + source.channel.parent.name + ">)"});
+		e.setAuthor({name: "Player Data (" + source.guild.name + (source.channel.parent ? " <" + source.channel.parent.name + ">" : "") + ")"});
 		e.setColor("#0000FF");
 
 		for(let i = 0; i < pdata.length; i++)
@@ -271,7 +279,7 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		let pdata = SERVER_DATA[source.channel.parent.id].players;
+		let pdata = SERVER_DATA[category(source)].players;
 		let players = (args[0] === "*" ? Object.keys(pdata) : [args[0]]);
 		let output = "";
 
@@ -333,14 +341,14 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		let defaults = SERVER_DATA[source.channel.parent.id].defaults;
+		let defaults = SERVER_DATA[category(source)].defaults;
 		let key = args[0].toLowerCase();
 		let value = args[1] || "";
 
 		if(!defaults)
 		{
-			SERVER_DATA[source.channel.parent.id].defaults = {};
-			defaults = SERVER_DATA[source.channel.parent.id].defaults;
+			SERVER_DATA[category(source)].defaults = {};
+			defaults = SERVER_DATA[category(source)].defaults;
 		}
 
 		for(let n = 2; n < args.length; n++)
@@ -364,7 +372,7 @@ module.exports = (g) =>
 
 	register_scmd(["tag_defaults", "tagdefaults", "defaults"], "", "Tag Defaults", "List all default tags which are applied to newly registered players.", {adminOnly: true}, (chn, source, e, args) =>
 	{
-		let defaults = SERVER_DATA[source.channel.parent.id].defaults;
+		let defaults = SERVER_DATA[category(source)].defaults;
 
 		if(!defaults || Object.keys(defaults).length === 0)
 		{
@@ -396,7 +404,7 @@ module.exports = (g) =>
 
 	register_scmd(["list_actions", "listactions", "list_action", "listaction", "actions"], "", "List Actions", "View a numbered list of all currently queued actions for the current round. Each action shows their Summary and Result text when available.", {adminOnly: true, shortDesc: "View a numbered list of all currently queued actions for the current round."}, (chn, source, e, args) =>
 	{
-		let data = SERVER_DATA[source.channel.parent.id];
+		let data = SERVER_DATA[category(source)];
 		let actions = data.actions;
 
 		if(!actions || actions.length === 0)
@@ -429,7 +437,7 @@ module.exports = (g) =>
 
 	register_scmd(["del_action", "delaction"], "<number or *>", "Delete Action", "Delete a specific action and prevent it from affecting future results. Use the 'list_actions' command to check the index of each action, or use `*` in place of a number to delete every action.", {adminOnly: true, minArgs: 1, shortDesc: "Delete a specific (or each) action and prevent it from affecting future results.", slashOpts: [{datatype: "String", oname: "action", func: (str) => str.setDescription("Action Number (see /list_actions) | Put `*` to delete all")}]}, (chn, source, e, args) =>
 	{
-		let actions = SERVER_DATA[source.channel.parent.id].actions;
+		let actions = SERVER_DATA[category(source)].actions;
 
 		if(!actions || actions.length === 0)
 		{
@@ -441,7 +449,7 @@ module.exports = (g) =>
 
 		if(i === "*")
 		{
-			SERVER_DATA[source.channel.parent.id].actions = [];
+			SERVER_DATA[category(source)].actions = [];
 			UTILS.msg("All actions deleted.", true);
 			overwrite();
 			return
@@ -479,7 +487,7 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		let data = SERVER_DATA[source.channel.parent.id];
+		let data = SERVER_DATA[category(source)];
 		let player = UTILS.isInt(args[0])
 				? data.players[Number(args[0])-1]
 				: UTILS.getPlayerByName(data.players, args[0]);
@@ -552,7 +560,7 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		let data = SERVER_DATA[source.channel.parent.id];
+		let data = SERVER_DATA[category(source)];
 		let player = UTILS.isInt(args[0])
 				? data.players[Number(args[0])-1]
 				: UTILS.getPlayerByName(data.players, args[0]);
@@ -610,7 +618,7 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		let data = SERVER_DATA[source.channel.parent.id];
+		let data = SERVER_DATA[category(source)];
 		let player = UTILS.isInt(args[0])
 				? data.players[Number(args[0])-1]
 				: UTILS.getPlayerByName(data.players, args[0]);
@@ -638,7 +646,7 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		let data = SERVER_DATA[source.channel.parent.id];
+		let data = SERVER_DATA[category(source)];
 		let player = UTILS.isInt(args[0])
 				? data.players[Number(args[0])-1]
 				: UTILS.getPlayerByName(data.players, args[0]);
@@ -708,7 +716,7 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		hp_change(source, SERVER_DATA[source.channel.parent.id], args[0], args[1], true);
+		hp_change(source, SERVER_DATA[category(source)], args[0], args[1], true);
 	});
 
 	register_scmd("damage", "<player name or number> <amount>", "Submit Effect: Damage", "Submit an action result that will damage a player at the end of this round. Note that this damage isn't intrinsically tied to any specific player action as far as this command is concerned. That is for you to manage.\n\nNegative damage is automatically counted as healing instead.",
@@ -721,7 +729,7 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		hp_change(source, SERVER_DATA[source.channel.parent.id], args[0], args[1], false);
+		hp_change(source, SERVER_DATA[category(source)], args[0], args[1], false);
 	});
 
 	function res_change(source, data, p, r, a, i)
@@ -775,7 +783,7 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		hp_change(source, SERVER_DATA[source.channel.parent.id], args[0], args[1], args[2], true);
+		hp_change(source, SERVER_DATA[category(source)], args[0], args[1], args[2], true);
 	});
 
 	register_scmd("give", "<player name or number> <resource> <amount>", "Submit Effect: Give", "Submit an action result that will give a resource (chel, elements, etc) to a player at the end of this round. Note that this isn't intrinsically tied to any specific player action as far as this command is concerned. That is for you to manage.\n\nGiving a negative amount is automatically counted as taking instead.",
@@ -789,12 +797,12 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		hp_change(source, SERVER_DATA[source.channel.parent.id], args[0], args[1], args[2], false);
+		hp_change(source, SERVER_DATA[category(source)], args[0], args[1], args[2], false);
 	});
 
 	register_scmd(["toggle_forcefail", "toggleforcefail", "forcefail"], "<action number>", "Toggle Forcefail", "Select an action and force it to fail at the end of the round, regardless of other conditions. This will also count the affected player as passing.\n\nThis is a toggle; if an action is actually meant to succeed, simply use this command on it again.\n\nSee the 'list_actions' command for action numbers.", {adminOnly: true, minArgs: 1, shortDesc: "Select an action and force it to fail at the end of the round, or undo a previous forcefail.", slashOps: [{datatype: "Integer", oname: "actionNumber", func: (str) => str.setDescription("Number of the action to forcefail (see /list_actions)")}]}, (chn, source, e, args) =>
 	{
-		let actions = SERVER_DATA[source.channel.parent.id].actions;
+		let actions = SERVER_DATA[category(source)].actions;
 		let anum = Number(args[0]);
 
 		if(!UTILS.isInt(args[0]))
@@ -816,7 +824,7 @@ module.exports = (g) =>
 
 	register_scmd(["list_spells", "listspells", "spells"], "", "List Spells", "View a list of all registered spell names.", {adminOnly: true}, (chn, source, e, args) =>
 	{
-		let spells = Object.keys(SERVER_DATA[source.channel.parent.id].spells || []);
+		let spells = Object.keys(SERVER_DATA[category(source)].spells || []);
 
 		if(spells.length === 0)
 		{
@@ -834,7 +842,7 @@ module.exports = (g) =>
 
 	register_scmd(["view_spell", "viewspell", "spell"], "<spell name>", "View Spell", "View a specific registered spell, as well as its cost.", {adminOnly: true, minArgs: 1, slashOpts: [{datatype: "String", oname: "spell", func: (str) => str.setDescription("Name of a spell")}]}, (chn, source, e, args) =>
 	{
-		let spells = SERVER_DATA[source.channel.parent.id].spells || {};
+		let spells = SERVER_DATA[category(source)].spells || {};
 		let sname = args[0].toLowerCase();
 
 		if(!spells[sname])
@@ -865,7 +873,7 @@ module.exports = (g) =>
 	},
 	(chn, source, e, args) =>
 	{
-		let data = SERVER_DATA[source.channel.parent.id];
+		let data = SERVER_DATA[category(source)];
 		data.spells = data.spells || {};
 		let sname = args[0].toLowerCase();
 
@@ -911,7 +919,7 @@ module.exports = (g) =>
 
 	register_scmd(["del_spell", "delspell"], "<spell name or *>", "Delete Spell", "Instantly delete a registered spell. Use the 'list_spells' command to check valid spell names.\n\nUse '*' to delete all registered spells.", {adminOnly: true, minArgs: 1, shortDesc: "Instantly delete a registered spell.", slashOpts: [{datatype: "String", oname: "spell", func: (str) => str.setDescription("Name of a spellr, or `*` to delete all spells")}]}, (chn, source, e, args) =>
 	{
-		let data = SERVER_DATA[source.channel.parent.id];
+		let data = SERVER_DATA[category(source)];
 		data.spells = data.spells || {};
 
 		if(args[0] === "*")
@@ -949,7 +957,7 @@ module.exports = (g) =>
 	(chn, source, e, args) =>
 	{
 		let elem = args[1].toLowerCase();
-		let data = SERVER_DATA[source.channel.parent.id];
+		let data = SERVER_DATA[category(source)];
 		let output = "";
 		let players = args[0] === "*" ? data.players : UTILS.isInt(args[0])
 				? [data.players[Number(args[0])-1]]
@@ -980,7 +988,7 @@ module.exports = (g) =>
 
 	register_scmd(["get_round", "getround", "round"], "", "Get Round", "Displays the current Round number. (1 if undefined)", (chn, source, e, args) =>
 	{
-		UTILS.msg(source, "This is Round " + (SERVER_DATA[source.channel.parent.id].round || 1) + ".");
+		UTILS.msg(source, "This is Round " + (SERVER_DATA[category(source)].round || 1) + ".");
 	});
 
 	register_scmd(["set_round", "setround"], "<number>", "Set Round", "Set the Round number to a specific whole-number value.", {adminOnly: true, minArgs: 1, slashOpts: [{datatype: "Integer", oname: "round", func: (str) => str.setDescription("Desired round number.")}]}, (chn, source, e, args) =>
@@ -991,14 +999,14 @@ module.exports = (g) =>
 			return;
 		}
 
-		SERVER_DATA[source.channel.parent.id].round = Number(args[0]);
+		SERVER_DATA[category(source)].round = Number(args[0]);
 		UTILS.msg(source, "It is now Round " + args[0] + ".");
 	});
 
 	register_scmd(["results", "result"], "[finalize? true/false]", "Preview/Finalize Results", "Show a preview of the round results according to all submitted actions. This includes both action submissions and action results.\n\nSpecify True/Yes or False/No as to if you wish for the posted results to be finalized. This will automatically commit all new spells, elements, hp changes, resource changes, etc. into internal memory and increment the Round value by 1. It will also clear out the Action Queue.\n\nDefault: False", {adminOnly: true, shortDesc: "Preview or finalize current round results according to all submitted actions. Default: Preview", slashOpts: [{datatype: "Boolean", oname: "finalize", func: (str) => str.setDescription("False: Only preview results | True: Commit results to memory and display them")}]}, (chn, source, e, args) =>
 	{
 		let final = UTILS.bool(args[0], false);
-		let data = SERVER_DATA[source.channel.parent.id];
+		let data = SERVER_DATA[category(source)];
 		let actions = data.actions;
 		let results = [];
 		let players = data.players;
@@ -1006,6 +1014,12 @@ module.exports = (g) =>
 		let passers = [];
 		let round = data.round || 1;
 		let output = (final ? "(Final)" : "(Preview)") + "\n**Round " + round + " Action Summary**\n";
+
+		if(!actions || actions.length === 0)
+		{
+			UTILS.msg(source, "-Error: Cannot display results when no actions have been submitted.");
+			return;
+		}
 
 		for(let i = 0; i < players.length; i++)
 			passers[i] = true;

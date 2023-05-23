@@ -323,7 +323,7 @@ bot.on("messageCreate", (message) =>
 		{
 			let meta = commands[cmd].meta;
 
-			if(meta.adminOnly && !message.member.permissions.has(ELEVATED))
+			if(meta.adminOnly && message.author.id !== LOCAL_DATA.OWNER && !message.member.permissions.has(ELEVATED))
 				UTILS.msg(message, "-You do not have elevated permissions for this bot.");
 			else if(meta.minArgs && args.length < meta.minArgs)
 				UTILS.msg(message, "-USAGE: " + PRE + cmd + " " + commands[cmd].param);
